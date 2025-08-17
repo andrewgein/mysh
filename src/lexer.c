@@ -5,8 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define COMMAND_MAX_S 80
+
 const char whitespace[] = "\t\r\n\v ";
-const char breaksymbols[] = "&|;";
+const char breaksymbols[] = "&|;()";
 
 char *read_next(char *buf, int *shift);
 char *read_word(char *buf, int *shift);
@@ -15,6 +17,14 @@ token_t *get_token(char *buf, int *shift);
 #ifdef DEBUG
 void print_tokens(token_t *tokens, int n);
 #endif
+
+void report_synthax_error(char *buf, int *shift) {
+  if(*shift + 10 < COMMAND_MAX_S) {
+    buf[*shift + 10] = '\0';
+  }
+  printf("Synthax error near -> %s\n", buf + *shift);
+  exit(1);
+}
 
 int get_tokens(char *buf, int bufsize, token_t *tokens) {
   int n;
@@ -104,8 +114,7 @@ char *read_special_symbol(char *buf, int *shift) {
   }
 
   if (bufp + 1 == bufendp) {
-    puts("Synthax error!");
-    exit(1);
+    report_synthax_error(buf, shift);
   }
 
   token = malloc(sizeof(char) * 3);
@@ -115,9 +124,14 @@ char *read_special_symbol(char *buf, int *shift) {
   } else if (*bufp == '|' && *(bufp + 1) == '|') {
     *shift += 2;
     token = "||";
+  } else if (*bufp == '(') {
+    *shift += 1;
+    token = "(";
+  } else if (*bufp == ')') {
+    *shift += 1;
+    token = ")";
   } else {
-    puts("Synthax error!");
-    exit(1);
+    report_synthax_error(buf, shift);
   }
   return token;
 }
@@ -130,34 +144,38 @@ token_t *get_token(char *buf, int *shift) {
     return NULL;
   }
 
-  if (strchr("|&;", tokenstr[0])) {
+  if (strchr(breaksymbols, tokenstr[0])) {
     switch (tokenstr[0]) {
     case '|':
       if (strlen(tokenstr) == 2) {
-        token->type = OR_IF;
+        token->type = TK_OR_IF;
         return token;
       } else {
-        puts("Synthax error!");
-        exit(1);
+        report_synthax_error(buf, shift);
       }
       break;
     case '&':
       if (strlen(tokenstr) == 2) {
-        token->type = AND_IF;
+        token->type = TK_AND_IF;
         return token;
       } else {
-        puts("Synthax error!");
-        exit(1);
+        report_synthax_error(buf, shift);
       }
       break;
     case ';':
-      token->type = SEMI;
+      token->type = TK_SEMI;
+      break;
+    case '(':
+      token->type = TK_SUBSH_OPEN;
+      break;
+    case ')':
+      token->type = TK_SUBSH_CLOSE;
       break;
     }
   } else {
     int argc = 1;
     token = malloc(sizeof(token_t));
-    token->type = CMD;
+    token->type = TK_CMD;
     token->data.cmd.head = tokenstr;
     token->data.cmd.parameters[0] = tokenstr;
     skip_whitespaces(buf, shift);
@@ -178,7 +196,7 @@ void print_tokens(token_t *tokens, int n) {
     tokenp = tokens + i;
     printf("%d\n", i);
     switch (tokenp->type) {
-    case CMD:
+    case TK_CMD:
       cmd = tokenp->data.cmd;
       puts("type: command");
       printf("head: %s\n", cmd.head);
@@ -188,15 +206,22 @@ void print_tokens(token_t *tokens, int n) {
       }
       printf("NULL\n");
       break;
-    case SEMI:
+    case TK_SEMI:
       puts("type: SEMI");
       break;
-    case OR_IF:
+    case TK_OR_IF:
       puts("type: OR_IF");
       break;
-    case AND_IF:
+    case TK_AND_IF:
       puts("type: AND_IF");
       break;
+    case TK_SUBSH_OPEN:
+      puts("type: SUBSH_OPEN");
+      break;
+    case TK_SUBSH_CLOSE:
+      puts("type: SUBSH_CLOSE");
+      break;
+    case TK_PIPE:
     defaults:
       puts("type: UNKNOWN");
     }
