@@ -1,41 +1,9 @@
+#include "lexer.h"
+
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define CMD 1
-#define PIPE 2
-#define AND_IF 3
-#define OR_IF 4
-#define SEMI 5
-
-#define MAX_PARAMS 80
-
-typedef struct token_t token_t;
-
-typedef struct {
-} token_base_t;
-
-typedef struct {
-  int type;
-  char *head;
-  char *parameters[MAX_PARAMS];
-} cmd_t;
-
-typedef struct {
-  int type;
-  token_t *left;
-  token_t *right;
-} pipe_t;
-
-struct token_t {
-  int type;
-  union {
-    token_base_t base;
-    cmd_t cmd;
-    pipe_t pipe;
-  } data;
-};
 
 const char whitespace[] = "\t\r\n\v ";
 const char breaksymbols[] = "&|;";
@@ -195,6 +163,7 @@ token_t *get_token(char *buf, int *shift) {
     skip_whitespaces(buf, shift);
     while ((tokenstr = read_word(buf, shift)) != NULL) {
       token->data.cmd.parameters[argc++] = tokenstr;
+      skip_whitespaces(buf, shift);
     }
     token->data.cmd.parameters[argc] = NULL;
   }
@@ -203,7 +172,7 @@ token_t *get_token(char *buf, int *shift) {
 
 void print_tokens(token_t *tokens, int n) {
   token_t *tokenp;
-  cmd_t cmd;
+  cmd_token_t cmd;
   puts("\n###########TOKENS###########");
   for (int i = 0; i < n; i++) {
     tokenp = tokens + i;

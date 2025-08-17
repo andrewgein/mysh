@@ -6,10 +6,14 @@
 #include <ctype.h>
 #include <errno.h>
 
-#include "lexer.c"
+#include "lexer.h"
+#include "parser.h"
+#include "runner.h"
 
 #define COMMAND_MAX_S     80
 #define PARAM_MAX_S       80
+
+#define TOKEN_MAX_S      100
 
 void type_prompt() {
   char *prompt;
@@ -26,17 +30,15 @@ void type_prompt() {
       printf("$ ");
 }
 
-void execute(cmd_t *command) {
-  execvp(command->head, command->parameters);
-}
-
-
 int main(int argc, char **argv) {
   int status;
-  static cmd_t command;
   static char buf[MAX_PARAMS*(PARAM_MAX_S + 1)];
   type_prompt();
-  token_t *tokens = malloc(sizeof(token_t) * 100);
-  get_tokens(buf, sizeof(buf), tokens);
-  return 0;
+  token_t *tokens = calloc(sizeof(token_t),  TOKEN_MAX_S);
+  while(get_tokens(buf, sizeof(buf), tokens)) {
+    run(parse_tokens(tokens));
+    memset(tokens, 0, TOKEN_MAX_S * sizeof(token_t));
+    type_prompt();
+  }
+  return status;
 }
