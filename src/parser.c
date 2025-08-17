@@ -83,6 +83,7 @@ ast_node_t *parse_tokens(token_t *tokens) {
 #ifdef DEBUG
   puts("###########AST###########");
   print_ast_tree(root);
+  puts("");
 #endif
   return root;
 }

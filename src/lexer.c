@@ -19,11 +19,18 @@ void print_tokens(token_t *tokens, int n);
 #endif
 
 void report_synthax_error(char *buf, int *shift) {
-  if(*shift + 10 < COMMAND_MAX_S) {
+  if (*shift + 10 < COMMAND_MAX_S) {
     buf[*shift + 10] = '\0';
   }
   printf("Synthax error near -> %s\n", buf + *shift);
   exit(1);
+}
+
+int is_end_of_input(char *buf) {
+  int buflen = strlen(buf);
+  return !((buflen >= 2 && buf[buflen - 2] == '\\') ||
+           (buflen >= 3 && buf[buflen - 2] == '&' && buf[buflen - 3] == '&') ||
+           (buflen >= 3 && buf[buflen - 2] == '|' && buf[buflen - 3] == '|'));
 }
 
 int get_tokens(char *buf, int bufsize, token_t *tokens) {
@@ -31,11 +38,29 @@ int get_tokens(char *buf, int bufsize, token_t *tokens) {
   token_t *token;
   char *bufp;
   int shift;
+  int read;
   shift = 0;
   memset(buf, 0, bufsize);
-  fgets(buf, bufsize, stdin);
-  if (buf[0] == 0)
-    return -1;
+  bufp = buf;
+
+  for (;;) {
+    fgets(bufp, bufsize, stdin);
+    if (is_end_of_input(bufp)) {
+      break;
+    }
+    read = strlen(bufp);
+    if (bufp[read - 2] == '\\') {
+      bufp[read - 1] = '\0';
+      bufp[read - 2] = '\0';
+      read -= 2;
+    } else if (bufp[read - 2] == '&') {
+      bufp[read - 1] = ' ';
+    }
+    bufp += read;
+    bufsize -= read;
+    printf("> ");
+  }
+
   buf[strlen(buf) - 1] = 0;
   bufp = buf;
   n = 0;
@@ -68,7 +93,7 @@ char *read_next(char *buf, int *shift) {
 
   bufp = buf + *shift;
   bufendp = buf + strlen(buf);
-  if(bufp == bufendp) {
+  if (bufp == bufendp) {
     return NULL;
   }
   tokenstartp = bufp;
@@ -78,7 +103,6 @@ char *read_next(char *buf, int *shift) {
   }
   return read_word(buf, shift);
 }
-
 char *read_word(char *buf, int *shift) {
   char *word;
   char *tokenstartp;
@@ -139,7 +163,6 @@ char *read_special_symbol(char *buf, int *shift) {
 token_t *get_token(char *buf, int *shift) {
   token_t *token = (token_t *)malloc(sizeof(token_t));
   char *tokenstr = read_next(buf, shift);
-  //printf("tokenstr: %s\n", tokenstr);
   if (tokenstr == NULL) {
     return NULL;
   }

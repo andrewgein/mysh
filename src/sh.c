@@ -36,7 +36,14 @@ int main(int argc, char **argv) {
   type_prompt();
   token_t *tokens = calloc(sizeof(token_t),  TOKEN_MAX_S);
   while(get_tokens(buf, sizeof(buf), tokens)) {
-    run(parse_tokens(tokens));
+    ast_node_t *root = parse_tokens(tokens);
+#ifdef DEBUG
+    puts("###########RESULT###########");
+#endif
+    run(root);
+#ifdef DEBUG
+    puts("");
+#endif
     memset(tokens, 0, TOKEN_MAX_S * sizeof(token_t));
     type_prompt();
   }
