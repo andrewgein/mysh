@@ -8,7 +8,7 @@
 #define COMMAND_MAX_S 80
 
 const char whitespace[] = "\t\r\n\v ";
-const char breaksymbols[] = "&|;()";
+const char breaksymbols[] = "&|;()<>";
 
 char *read_next(char *buf, int *shift);
 char *read_word(char *buf, int *shift);
@@ -130,10 +130,11 @@ char *read_special_symbol(char *buf, int *shift) {
   char *bufendp = buf + strlen(buf);
   char *token;
 
-  if (*bufp == ';') {
+  if (*bufp == ';' || *bufp == '(' || *bufp == ')') {
     *shift += 1;
     token = malloc(sizeof(char) * 2);
-    token = ";";
+    *token = *bufp;
+    *(token + 1) = '\0';
     return token;
   }
 
@@ -148,12 +149,6 @@ char *read_special_symbol(char *buf, int *shift) {
   } else if (*bufp == '|' && *(bufp + 1) == '|') {
     *shift += 2;
     token = "||";
-  } else if (*bufp == '(') {
-    *shift += 1;
-    token = "(";
-  } else if (*bufp == ')') {
-    *shift += 1;
-    token = ")";
   } else {
     report_synthax_error(buf, shift);
   }

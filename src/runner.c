@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
 int is_builtin(char *cmd) {
   char *builtins[] = {"cd", "exit", "exec"};
@@ -40,7 +41,9 @@ int run(ast_node_t *root) {
   }
 
   int lstatus, rstatus;
+  pid_t pid;
   switch (root->type) {
+
   case AST_CMD:
     if (is_builtin(root->data.cmd.head)) {
       return run_builtin(root->data.cmd);
@@ -53,34 +56,29 @@ int run(ast_node_t *root) {
 
   case AST_AND_IF:
     lstatus = run(root->data.log.left);
-    rstatus = run(root->data.log.right);
-    return !(!lstatus && !rstatus);
+    if (lstatus == 0) {
+      rstatus = run(root->data.log.right);
+      return rstatus;
+    }
+    return lstatus;
 
   case AST_OR_IF:
-    if (fork() == 0) {
-      run(root->data.log.left);
+    lstatus = run(root->data.log.left);
+    if (lstatus != 0) {
+      rstatus = run(root->data.log.right);
+      return rstatus;
     }
-    waitpid(-1, &lstatus, 0);
-    if (lstatus != 0 && fork() == 0) {
-      run(root->data.log.right);
-    }
-    waitpid(-1, &lstatus, 0);
-    return !(!lstatus || !rstatus);
+    return lstatus;
 
   case AST_SEMI:
-    if (fork() == 0) {
-      run(root->data.log.left);
-    }
-    waitpid(-1, &lstatus, 0);
-    if (fork() == 0) {
-      run(root->data.log.right);
-    }
-    waitpid(-1, &rstatus, 0);
-    // TODO return??
-    break;
+    lstatus = run(root->data.log.left);
+    rstatus = run(root->data.log.right);
+    return rstatus;
+
   case AST_SUBSH:
-    if (fork()) {
+    if (fork() == 0) {
       run(root->data.subsh.content);
+      exit(0);
     }
     waitpid(-1, &lstatus, 0);
     return lstatus;
