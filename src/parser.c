@@ -8,6 +8,12 @@
 void print_ast_tree(ast_node_t *root);
 #endif
 
+ast_node_t *parse_cmd(token_t *token, int *shift);
+ast_node_t *parse_subshell(token_t *token, int *shift);
+ast_node_t *parse_pipes(token_t *token, int *shift);
+ast_node_t *parse_redirection(token_t *token, int *shift);
+ast_node_t *parse_logical(token_t *token, int *shift);
+
 ast_type_t to_ast_logical_type(token_type_t type) {
   switch (type) {
   case TK_AND_IF:
@@ -21,10 +27,6 @@ ast_type_t to_ast_logical_type(token_type_t type) {
     exit(1);
   }
 }
-
-ast_node_t *parse_cmd(token_t *token, int *shift);
-ast_node_t *parse_subshell(token_t *token, int *shift);
-ast_node_t *parse_logical(token_t *token, int *shift);
 
 ast_node_t *parse_cmd(token_t *tokens, int *shift) {
   token_t *cur = tokens + *shift;
@@ -56,6 +58,20 @@ ast_node_t *parse_subshell(token_t *tokens, int *shift) {
   return parse_cmd(tokens, shift);
 }
 
+ast_node_t *parse_pipe(token_t *tokens, int *shift) {
+  ast_node_t *left = parse_subshell(tokens, shift);
+  while((tokens + *shift)->type == TK_PIPE) {
+    ast_node_t *node = malloc(sizeof(ast_node_t));
+    *shift += 1;
+    node->type = AST_PIPE;
+    node->data.pipe.right = parse_subshell(tokens, shift);
+    node->data.pipe.left = left;
+    left = node;
+  }
+
+  return left;
+}
+
 int is_logical(token_t *tokenp) {
   return (tokenp != NULL &&
           (tokenp->type == TK_AND_IF || tokenp->type == TK_OR_IF ||
@@ -63,13 +79,12 @@ int is_logical(token_t *tokenp) {
 }
 
 ast_node_t *parse_logical(token_t *tokens, int *shift) {
-  ast_node_t *left = parse_subshell(tokens, shift);
-
+  ast_node_t *left = parse_pipe(tokens, shift);
   while (is_logical(tokens + *shift)) {
     ast_node_t *node = malloc(sizeof(ast_node_t));
     node->type = to_ast_logical_type((tokens + *shift)->type);
     *shift += 1;
-    node->data.log.right = parse_subshell(tokens, shift);
+    node->data.log.right = parse_pipe(tokens, shift);
     node->data.log.left = left;
     left = node;
   }
@@ -109,6 +124,9 @@ void print_ast_node(ast_node_t *node) {
   case AST_SUBSH:
     puts("SUBSH");
     break;
+  case AST_PIPE:
+    puts("PIPE");
+    break;
   default:
     printf("%d UNSUPPORTED!", node->type);
   }
@@ -125,7 +143,7 @@ void print_ast_tree(ast_node_t *root) {
     puts(")");
   }
   else if (root->type == AST_AND_IF || root->type == AST_OR_IF ||
-      root->type == AST_SEMI) {
+      root->type == AST_SEMI || root->type == AST_PIPE) {
     print_ast_tree(root->data.log.left);
     print_ast_node(root);
     print_ast_tree(root->data.log.right);

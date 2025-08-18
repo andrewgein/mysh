@@ -130,7 +130,7 @@ char *read_special_symbol(char *buf, int *shift) {
   char *bufendp = buf + strlen(buf);
   char *token;
 
-  if (*bufp == ';' || *bufp == '(' || *bufp == ')') {
+  if (*bufp == ';' || *bufp == '(' || *bufp == ')' || *bufp == '|') {
     *shift += 1;
     token = malloc(sizeof(char) * 2);
     *token = *bufp;
@@ -169,9 +169,9 @@ token_t *get_token(char *buf, int *shift) {
         token->type = TK_OR_IF;
         return token;
       } else {
-        report_synthax_error(buf, shift);
+        token->type = TK_PIPE;
+        return token;
       }
-      break;
     case '&':
       if (strlen(tokenstr) == 2) {
         token->type = TK_AND_IF;
@@ -240,6 +240,8 @@ void print_tokens(token_t *tokens, int n) {
       puts("type: SUBSH_CLOSE");
       break;
     case TK_PIPE:
+      puts("type: PIPE");
+      break;
     defaults:
       puts("type: UNKNOWN");
     }

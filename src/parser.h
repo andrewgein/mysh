@@ -30,12 +30,18 @@ typedef struct {
   ast_node_t *content;
 } ast_subsh_t;
 
+typedef struct {
+  ast_node_t *left;
+  ast_node_t *right;
+} ast_pipe_t;
+
 struct ast_node_t { 
   ast_type_t type;
   union {
     ast_cmd_t     cmd;
     ast_log_t     log;
     ast_subsh_t subsh;
+    ast_pipe_t   pipe;
   } data;
 };
 

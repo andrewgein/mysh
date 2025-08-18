@@ -41,6 +41,7 @@ int run(ast_node_t *root) {
   }
 
   int lstatus, rstatus;
+  int pipefd[2];
   pid_t pid;
   switch (root->type) {
 
@@ -82,6 +83,24 @@ int run(ast_node_t *root) {
     }
     waitpid(-1, &lstatus, 0);
     return lstatus;
+
+  case AST_PIPE:
+    pipe(pipefd);
+    if (fork() == 0) {
+      if(fork() == 0) {
+        dup2(pipefd[0], STDIN_FILENO);
+        close(pipefd[1]);
+        lstatus = run(root->data.pipe.left);
+        exit(0);
+      } else {
+        dup2(pipefd[1], STDOUT_FILENO);
+        close(pipefd[0]);
+        rstatus = run(root->data.pipe.right);
+        exit(0);
+      }
+    }
+    waitpid(-1, &lstatus, 0);
+    break;
 
   default:
     printf("runner: Unsupported operation %d\n", root->type);
