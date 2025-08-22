@@ -10,10 +10,10 @@
 const char whitespace[] = "\t\r\n\v ";
 const char breaksymbols[] = "&|;()<>";
 
-char *read_next(char *buf, int *shift);
 char *read_word(char *buf, int *shift);
 char *read_special_symbol(char *buf, int *shift);
 token_t *get_token(char *buf, int *shift);
+token_list_t *merge_tokens(token_list_t *tklist);
 #ifdef DEBUG
 void print_tokens(token_t *tokens, int n);
 #endif
@@ -39,6 +39,8 @@ int get_tokens(char *buf, int bufsize, token_t *tokens) {
   char *bufp;
   int shift;
   int read;
+  token_list_t *tklist = NULL;
+  token_list_t *head;
   shift = 0;
   memset(buf, 0, bufsize);
   bufp = buf;
@@ -65,11 +67,24 @@ int get_tokens(char *buf, int bufsize, token_t *tokens) {
   bufp = buf;
   n = 0;
   while ((token = get_token(buf, &shift)) != NULL) {
+    if (tklist == NULL) {
+      tklist = init(token);
+      head = tklist;
+    } else {
+      add_item(head, token);
+      head = head->next;
+    }
     bufp += shift;
-    tokens[n++] = *token;
+    n++;
+  }
+  tklist = merge_tokens(tklist);
+  head = tklist;
+  for (int i = 0; head != NULL; i++) {
+    tokens[i] = *(token_t *)head->data;
+    head = head->next;
   }
 #ifdef DEBUG
-  print_tokens(tokens, n);
+  print_tokens(tokens, get_length(tklist));
 #endif
   return n;
 }
@@ -82,27 +97,16 @@ void skip_whitespaces(char *buf, int *shift) {
   *shift = bufp - buf;
 }
 
-char *read_next(char *buf, int *shift) {
-  char *bufp;
-  char *bufendp;
-  char *tokenstr;
-  char *tokenstartp;
-  char *tokenendp;
-
-  skip_whitespaces(buf, shift);
-
-  bufp = buf + *shift;
-  bufendp = buf + strlen(buf);
-  if (bufp == bufendp) {
-    return NULL;
+int is_redirection(char *bufp) {
+  if ((bufp != NULL) && isdigit(*bufp)) {
+    bufp += 1;
   }
-  tokenstartp = bufp;
-  *shift = bufp - buf;
-  if (strchr(breaksymbols, *tokenstartp)) {
-    return read_special_symbol(buf, shift);
+  if ((bufp != NULL) && (*bufp == '&')) {
+    bufp += 1;
   }
-  return read_word(buf, shift);
+  return (bufp != NULL) && (*bufp == '<' || *bufp == '>');
 }
+
 char *read_word(char *buf, int *shift) {
   char *word;
   char *tokenstartp;
@@ -125,85 +129,167 @@ char *read_word(char *buf, int *shift) {
   return word;
 }
 
-char *read_special_symbol(char *buf, int *shift) {
-  char *bufp = buf + *shift;
-  char *bufendp = buf + strlen(buf);
-  char *token;
-
-  if (*bufp == ';' || *bufp == '(' || *bufp == ')' || *bufp == '|') {
-    *shift += 1;
-    token = malloc(sizeof(char) * 2);
-    *token = *bufp;
-    *(token + 1) = '\0';
-    return token;
+token_t *read_io_number(char *buf, int *shift) {
+  token_t *token;
+  char *cur = buf + *shift;
+  char *next = buf + *shift + 1;
+  if (!isdigit(*(cur))) {
+    return NULL;
   }
-
-  if (bufp + 1 == bufendp) {
-    report_synthax_error(buf, shift);
+  if (!strchr("<>&|", *next)) {
+    return NULL;
   }
-
-  token = malloc(sizeof(char) * 3);
-  if (*bufp == '&' && *(bufp + 1) == '&') {
-    *shift += 2;
-    token = "&&";
-  } else if (*bufp == '|' && *(bufp + 1) == '|') {
-    *shift += 2;
-    token = "||";
-  } else {
-    report_synthax_error(buf, shift);
-  }
+  token = malloc(sizeof(token_t));
+  token->type = TK_FD_NUMBER;
+  token->data.fd_num.fd = *cur - '0';
+  (*shift)++;
   return token;
 }
 
 token_t *get_token(char *buf, int *shift) {
-  token_t *token = (token_t *)malloc(sizeof(token_t));
-  char *tokenstr = read_next(buf, shift);
-  if (tokenstr == NULL) {
+  token_t *token;
+  char *cur;
+  char *next;
+  skip_whitespaces(buf, shift);
+  cur = buf + *shift;
+  next = buf + *shift + 1;
+  if (*cur == '\0') {
     return NULL;
   }
 
-  if (strchr(breaksymbols, tokenstr[0])) {
-    switch (tokenstr[0]) {
-    case '|':
-      if (strlen(tokenstr) == 2) {
-        token->type = TK_OR_IF;
-        return token;
-      } else {
-        token->type = TK_PIPE;
-        return token;
-      }
-    case '&':
-      if (strlen(tokenstr) == 2) {
-        token->type = TK_AND_IF;
-        return token;
-      } else {
-        report_synthax_error(buf, shift);
-      }
-      break;
-    case ';':
-      token->type = TK_SEMI;
-      break;
-    case '(':
-      token->type = TK_SUBSH_OPEN;
-      break;
-    case ')':
-      token->type = TK_SUBSH_CLOSE;
-      break;
+  if ((token = read_io_number(buf, shift))) {
+    return token;
+  }
+
+  token = malloc(sizeof(token_t));
+  switch (*cur) {
+  case '&':
+    if (*next == '&') {
+      token->type = TK_AND_IF;
+      *shift += 2;
+    } else if (*next == '>') {
+      token->type = TK_REDIRECT;
+      token->data.redir.type = RD_IN;
+      token->data.redir.dup = 1;
+      *shift += 2;
+    } else {
+      token->type = TK_WORD;
+      *shift += 1;
     }
-  } else {
-    int argc = 1;
-    token = malloc(sizeof(token_t));
-    token->type = TK_CMD;
-    token->data.cmd.head = tokenstr;
-    token->data.cmd.parameters[0] = tokenstr;
-    skip_whitespaces(buf, shift);
-    while ((tokenstr = read_word(buf, shift)) != NULL) {
-      token->data.cmd.parameters[argc++] = tokenstr;
-      skip_whitespaces(buf, shift);
+    break;
+
+  case '|':
+    if (*next == '|') {
+      token->type = TK_OR_IF;
+      *shift += 2;
+    } else {
+      token->type = TK_PIPE;
+      *shift += 1;
     }
-    token->data.cmd.parameters[argc] = NULL;
+    break;
+
+  case ';':
+    token->type = TK_SEMI;
+    *shift += 1;
+    break;
+  case '(':
+    token->type = TK_SUBSH_OPEN;
+    *shift += 1;
+    break;
+  case ')':
+    token->type = TK_SUBSH_CLOSE;
+    *shift += 1;
+    break;
+
+  case '>':
+    if (*next == '>') {
+      token->type = TK_REDIRECT;
+      token->data.redir.type = APP_OUT;
+      *shift += 2;
+    } else {
+      token->type = TK_REDIRECT;
+      token->data.redir.type = RD_OUT;
+      *shift += 1;
+    }
+    break;
+
+  case '<':
+    if (*next == '>') {
+      token->type = TK_REDIRECT;
+      token->data.redir.type = RD_INOUT;
+      *shift += 2;
+    } else if (*next == '&') {
+      token->type = TK_REDIRECT;
+      token->data.redir.type = RD_IN;
+      token->data.redir.dup = 1;
+      *shift += 2;
+    } else {
+      token->type = TK_REDIRECT;
+      token->data.redir.type = RD_IN;
+      *shift += 1;
+    }
+    break;
+
+  default:
+    token->type = TK_WORD;
+    token->data.word.str = read_word(buf, shift);
   }
   return token;
+}
+
+token_list_t *merge_tokens(token_list_t *head) {
+  token_t *curtk;
+  token_t *nexttk;
+  if (head == NULL) {
+    return NULL;
+  }
+  curtk = head->data;
+  if (head->next == NULL) {
+    nexttk = NULL;
+  } else {
+    nexttk = head->next->data;
+  }
+  int fd;
+  switch (curtk->type) {
+  case TK_REDIRECT:
+    if (nexttk == NULL || nexttk->type != TK_WORD) {
+      puts("TK_REDIRECT Error! TODO: add buf_shift");
+      exit(1);
+    }
+    curtk->data.redir.file = nexttk->data.word.str;
+    remove_next(head);
+    break;
+  case TK_WORD:
+    curtk->type = TK_CMD;
+    curtk->data.cmd.head = curtk->data.word.str;
+    curtk->data.cmd.parameters[0] = curtk->data.cmd.head;
+    for (int i = 1; nexttk != NULL && nexttk->type == TK_WORD; i++) {
+      curtk->data.cmd.parameters[i] = nexttk->data.word.str;
+      remove_next(head);
+      if (head->next == NULL) {
+        break;
+      }
+      nexttk = head->next->data;
+    }
+    break;
+  case TK_FD_NUMBER:
+    if (nexttk == NULL || nexttk->type != TK_REDIRECT) {
+      puts("TK_FD_NUMBER Error! TODO: add buf_shift");
+      exit(1);
+    }
+    fd = curtk->data.fd_num.fd;
+    curtk->type = nexttk->type;
+    curtk->data = nexttk->data;
+    curtk->data.redir.fd = fd;
+    remove_next(head);
+    merge_tokens(head);
+    break;
+
+  default:
+    break;
+  }
+  merge_tokens(head->next);
+  return head;
 }
 
 void print_tokens(token_t *tokens, int n) {
@@ -214,6 +300,10 @@ void print_tokens(token_t *tokens, int n) {
     tokenp = tokens + i;
     printf("%d\n", i);
     switch (tokenp->type) {
+    case TK_WORD:
+      puts("type: WORD");
+      printf("content: %s\n", tokenp->data.word.str);
+      break;
     case TK_CMD:
       cmd = tokenp->data.cmd;
       puts("type: command");
@@ -242,8 +332,40 @@ void print_tokens(token_t *tokens, int n) {
     case TK_PIPE:
       puts("type: PIPE");
       break;
-    defaults:
+
+    case TK_REDIRECT:
+      switch (tokenp->data.redir.type) {
+      case RD_IN:
+        printf("type: REDIRECT_IN, fd: %d, dup: %d\n", tokenp->data.redir.fd,
+               tokenp->data.redir.dup);
+        printf("file: %s\n", tokenp->data.redir.file);
+        break;
+
+      case RD_OUT:
+        printf("type: REDIRECT_OUT, fd: %d, dup: %d\n", tokenp->data.redir.fd,
+               tokenp->data.redir.dup);
+        printf("file: %s\n", tokenp->data.redir.file);
+        break;
+
+      case RD_INOUT:
+        puts("type: REDIRECT_IN_OUT");
+        break;
+
+      case APP_OUT:
+        printf("type: APPEND_OUT, fd: %d, dup: %d\n", tokenp->data.redir.fd,
+               tokenp->data.redir.dup);
+        printf("file: %s\n", tokenp->data.redir.file);
+        break;
+      }
+      break;
+
+    case TK_HEREDOC:
+      puts("type: HEREDOC");
+      break;
+
+    default:
       puts("type: UNKNOWN");
+      break;
     }
     puts("");
   }

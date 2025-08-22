@@ -19,7 +19,7 @@ void type_prompt() {
   char *prompt;
   prompt = getenv("PS1");
   #ifdef DEBUG
-    printf("[test] ");
+    printf("\e[0;31m[debug]\033[0m ");
   #endif
   if(prompt != NULL)
     printf("%s", prompt);

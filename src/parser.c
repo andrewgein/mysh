@@ -10,8 +10,8 @@ void print_ast_tree(ast_node_t *root);
 
 ast_node_t *parse_cmd(token_t *token, int *shift);
 ast_node_t *parse_subshell(token_t *token, int *shift);
-ast_node_t *parse_pipes(token_t *token, int *shift);
 ast_node_t *parse_redirection(token_t *token, int *shift);
+ast_node_t *parse_pipes(token_t *token, int *shift);
 ast_node_t *parse_logical(token_t *token, int *shift);
 
 ast_type_t to_ast_logical_type(token_type_t type) {
@@ -58,13 +58,26 @@ ast_node_t *parse_subshell(token_t *tokens, int *shift) {
   return parse_cmd(tokens, shift);
 }
 
-ast_node_t *parse_pipe(token_t *tokens, int *shift) {
+ast_node_t *parse_redirection(token_t *tokens, int *shift) {
   ast_node_t *left = parse_subshell(tokens, shift);
-  while((tokens + *shift)->type == TK_PIPE) {
+  if ((tokens + *shift)->type == TK_REDIRECT) {
+    ast_node_t *node = malloc(sizeof(ast_node_t));
+    node->type = AST_REDIRECT;
+    node->data.redir.left = left;
+    node->data.redir.rdinfo = (tokens + *shift)->data.redir;
+    *shift += 1;
+    return node;
+  }
+  return left;
+}
+
+ast_node_t *parse_pipe(token_t *tokens, int *shift) {
+  ast_node_t *left = parse_redirection(tokens, shift);
+  while ((tokens + *shift)->type == TK_PIPE) {
     ast_node_t *node = malloc(sizeof(ast_node_t));
     *shift += 1;
     node->type = AST_PIPE;
-    node->data.pipe.right = parse_subshell(tokens, shift);
+    node->data.pipe.right = parse_redirection(tokens, shift);
     node->data.pipe.left = left;
     left = node;
   }
@@ -127,6 +140,29 @@ void print_ast_node(ast_node_t *node) {
   case AST_PIPE:
     puts("PIPE");
     break;
+  case AST_REDIRECT:
+    switch (node->data.redir.rdinfo.type) {
+    case RD_IN:
+      printf("REDIRECT_IN, fd: %d, dup: %d, file: %s\n",
+             node->data.redir.rdinfo.fd, node->data.redir.rdinfo.dup,
+             node->data.redir.rdinfo.file);
+      break;
+    case RD_OUT:
+      printf("REDIRECT_OUT, fd: %d, dup: %d, file: %s\n",
+             node->data.redir.rdinfo.fd, node->data.redir.rdinfo.dup,
+             node->data.redir.rdinfo.file);
+      break;
+    case RD_INOUT:
+      puts("REDIRECT_IN_OUT");
+      break;
+    case APP_OUT:
+      printf("APPEND_OUT, fd: %d, dup: %d, file: %s\n",
+             node->data.redir.rdinfo.fd, node->data.redir.rdinfo.dup,
+             node->data.redir.rdinfo.file);
+      break;
+    }
+    break;
+
   default:
     printf("%d UNSUPPORTED!", node->type);
   }
@@ -136,17 +172,19 @@ void print_ast_tree(ast_node_t *root) {
   if (root == NULL) {
     return;
   }
-  if(root->type == AST_SUBSH) {
+  if (root->type == AST_SUBSH) {
     print_ast_node(root);
     puts("(");
     print_ast_tree(root->data.subsh.content);
     puts(")");
-  }
-  else if (root->type == AST_AND_IF || root->type == AST_OR_IF ||
-      root->type == AST_SEMI || root->type == AST_PIPE) {
+  } else if (root->type == AST_AND_IF || root->type == AST_OR_IF ||
+             root->type == AST_SEMI || root->type == AST_PIPE) {
     print_ast_tree(root->data.log.left);
     print_ast_node(root);
     print_ast_tree(root->data.log.right);
+  } else if (root->type == AST_REDIRECT) {
+    print_ast_tree(root->data.redir.left);
+    print_ast_node(root);
   } else {
     print_ast_node(root);
   }
