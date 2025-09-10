@@ -28,6 +28,9 @@ void destroy(list_node_t *item) {
 }
 
 void destroy_all(list_node_t *item) {
+  if(item == NULL) {
+    return;
+  }
   while(item->next != NULL) {
     destroy_next(item);
   }

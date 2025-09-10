@@ -7,6 +7,7 @@
 #include <errno.h>
 
 #include "lexer.h"
+#include "list.h"
 #include "parser.h"
 #include "runner.h"
 
@@ -34,9 +35,10 @@ int main(int argc, char **argv) {
   int status;
   static char buf[MAX_PARAMS*(PARAM_MAX_S + 1)];
   type_prompt();
-  token_t *tokens = calloc(sizeof(token_t),  TOKEN_MAX_S);
-  while(get_tokens(buf, sizeof(buf), tokens)) {
-    ast_node_t *root = parse_tokens(tokens);
+  token_list_t *tokens, *start;
+  while((tokens = get_tokens(buf, sizeof(buf)))) {
+    start = tokens;
+    ast_node_t *root = parse_tokens(&start);
 #ifdef DEBUG
     puts("###########RESULT###########");
 #endif
@@ -44,7 +46,8 @@ int main(int argc, char **argv) {
 #ifdef DEBUG
     puts("");
 #endif
-    memset(tokens, 0, TOKEN_MAX_S * sizeof(token_t));
+    lexer_cleanup(tokens);
+    parser_cleanup(root);
     type_prompt();
   }
   return status;

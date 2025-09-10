@@ -17,7 +17,7 @@ typedef enum {
   TK_SUBSH_CLOSE,
   TK_CMD_SUB_OPEN,
   TK_CMD_SUB_CLOSE,
-  TK_VAR_EXP_START,
+  TK_ENV_VAR_START,
   TK_REDIRECT,
   TK_HEREDOC
 } token_type_t;
@@ -35,8 +35,6 @@ typedef struct {
 typedef struct {
   char *head;
   token_list_t *parameters;
-  token_t *parameters_array; // TODO remove this mf
-  int argc;
 } cmd_token_t;
 
 typedef struct {
@@ -76,6 +74,7 @@ struct token_t {
 };
 
 
-int get_tokens(char *buf, int bufsize, token_t *tokens);
+token_list_t *get_tokens(char *buf, int bufsize);
+void lexer_cleanup(token_list_t *tokens);
 
 #endif

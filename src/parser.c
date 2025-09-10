@@ -12,11 +12,12 @@
 void print_ast_tree(ast_node_t *root);
 #endif
 
-ast_node_t *parse_cmd(token_t *token, int *shift);
-ast_node_t *parse_subshell(token_t *token, int *shift);
-ast_node_t *parse_redirection(token_t *token, int *shift);
-ast_node_t *parse_pipes(token_t *token, int *shift);
-ast_node_t *parse_logical(token_t *token, int *shift);
+ast_node_t *parse_subcmd(token_list_t **it);
+ast_node_t *parse_cmd(token_list_t **it);
+ast_node_t *parse_subshell(token_list_t **it);
+ast_node_t *parse_redirection(token_list_t **it);
+ast_node_t *parse_pipes(token_list_t **it);
+ast_node_t *parse_logical(token_list_t **it);
 
 ast_type_t to_ast_logical_type(token_type_t type) {
   switch (type) {
@@ -32,43 +33,62 @@ ast_type_t to_ast_logical_type(token_type_t type) {
   }
 }
 
-ast_node_t *parse_subcmd(token_t *tokens, int *shift) {
-  if ((tokens + *shift)->type == TK_CMD_SUB_OPEN) {
+void next(token_list_t **it) {
+  if (*it == NULL) {
+    return;
+  }
+  *it = (*it)->next;
+}
+
+token_t *get(token_list_t **it) {
+  if (*it == NULL) {
+    return NULL;
+  }
+  return (*it)->data;
+}
+
+token_type_t get_type(token_list_t **it) {
+  if (*it == NULL) {
+    return -1;
+  }
+  return ((token_t *)(*it)->data)->type;
+}
+
+ast_node_t *parse_subcmd(token_list_t **it) {
+  if (get_type(it) == TK_CMD_SUB_OPEN) {
     ast_node_t *node = malloc(sizeof(ast_node_t));
-    *shift += 1;
+    next(it);
     node->type = AST_SUBCMD;
-    node->data.cmdsub.cmd = parse_logical(tokens, shift);
-    if ((tokens + *shift)->type != TK_CMD_SUB_CLOSE) {
+    node->data.cmdsub.cmd = parse_logical(it);
+    if (get_type(it) != TK_CMD_SUB_CLOSE) {
       puts(MISPRT_ERROR_MSG);
       exit(1);
     }
-    *shift += 1;
+    next(it);
     return node;
   }
   return NULL;
 }
 
-ast_node_t *parse_cmd(token_t *tokens, int *shift) {
-  token_t *cur = tokens + *shift;
-  if (cur == NULL) {
+ast_node_t *parse_cmd(token_list_t **it) {
+  if (*it == NULL) {
     return NULL;
   }
   ast_node_t *result = malloc(sizeof(ast_node_t));
   ast_node_t *cmdnode = result;
-  token_t arg;
+  token_list_t *arg = get(it)->data.cmd.parameters;
   cmdnode->type = AST_CMD;
-  cmdnode->data.cmd.head = cur->data.cmd.head;
-  int argn, i;
-  argn = 0;
-  for (i = 0; i < cur->data.cmd.argc; i++) {
-    arg = cur->data.cmd.parameters_array[i];
+  cmdnode->data.cmd.head = malloc(strlen(get(it)->data.cmd.head));
+  strcpy(cmdnode->data.cmd.head, get(it)->data.cmd.head);
+  int argn = 0;
+  while (arg != NULL) {
     cmdnode->data.cmd.parameters[argn] = malloc(MAX_PARAM_LEN);
-    if (arg.type == TK_WORD) {
-      strcpy(cmdnode->data.cmd.parameters[argn], arg.data.word.str);
-    } else if (arg.type == TK_CMD_SUB_OPEN) {
+    if (get_type(&arg) == TK_WORD) {
+      strcpy(cmdnode->data.cmd.parameters[argn], get(&arg)->data.word.str);
+      arg = arg->next;
+    } else if (get_type(&arg) == TK_CMD_SUB_OPEN) {
       ast_node_t *upper = malloc(sizeof(ast_node_t));
-      upper = parse_subcmd(cur->data.cmd.parameters_array, &i);
-      i--;
+      upper = parse_subcmd(&arg);
       upper->data.cmdsub.result = cmdnode->data.cmd.parameters[argn];
       upper->data.cmdsub.next = result;
       result = upper;
@@ -78,46 +98,46 @@ ast_node_t *parse_cmd(token_t *tokens, int *shift) {
     }
     argn++;
   }
-  *shift += 1;
+  next(it);
   return result;
 }
 
-ast_node_t *parse_subshell(token_t *tokens, int *shift) {
-  if ((tokens + *shift)->type == TK_SUBSH_OPEN) {
+ast_node_t *parse_subshell(token_list_t **it) {
+  if (get_type(it) == TK_SUBSH_OPEN) {
     ast_node_t *node = malloc(sizeof(ast_node_t));
-    *shift += 1;
+    next(it);
     node->type = AST_SUBSH;
-    node->data.subsh.content = parse_logical(tokens, shift);
-    if ((tokens + *shift)->type != TK_SUBSH_CLOSE) {
+    node->data.subsh.content = parse_logical(it);
+    if (get_type(it) != TK_SUBSH_CLOSE) {
       puts(MISPRT_ERROR_MSG);
       exit(1);
     }
-    *shift += 1;
+    next(it);
     return node;
   }
-  return parse_cmd(tokens, shift);
+  return parse_cmd(it);
 }
 
-ast_node_t *parse_redirection(token_t *tokens, int *shift) {
-  ast_node_t *left = parse_subshell(tokens, shift);
-  if ((tokens + *shift)->type == TK_REDIRECT) {
+ast_node_t *parse_redirection(token_list_t **it) {
+  ast_node_t *left = parse_subshell(it);
+  if (get_type(it) == TK_REDIRECT) {
     ast_node_t *node = malloc(sizeof(ast_node_t));
     node->type = AST_REDIRECT;
     node->data.redir.left = left;
-    node->data.redir.rdinfo = (tokens + *shift)->data.redir;
-    *shift += 1;
+    node->data.redir.rdinfo = get(it)->data.redir;
+    next(it);
     return node;
   }
   return left;
 }
 
-ast_node_t *parse_pipe(token_t *tokens, int *shift) {
-  ast_node_t *left = parse_redirection(tokens, shift);
-  while ((tokens + *shift)->type == TK_PIPE) {
+ast_node_t *parse_pipe(token_list_t **it) {
+  ast_node_t *left = parse_redirection(it);
+  while (get_type(it) == TK_PIPE) {
     ast_node_t *node = malloc(sizeof(ast_node_t));
-    *shift += 1;
+    next(it);
     node->type = AST_PIPE;
-    node->data.pipe.right = parse_redirection(tokens, shift);
+    node->data.pipe.right = parse_redirection(it);
     node->data.pipe.left = left;
     left = node;
   }
@@ -125,19 +145,23 @@ ast_node_t *parse_pipe(token_t *tokens, int *shift) {
   return left;
 }
 
-int is_logical(token_t *tokenp) {
+int is_logical(token_list_t **it) {
+  if (*it == NULL) {
+    return 0;
+  }
+  token_t *tokenp = (*it)->data;
   return (tokenp != NULL &&
           (tokenp->type == TK_AND_IF || tokenp->type == TK_OR_IF ||
            tokenp->type == TK_SEMI));
 }
 
-ast_node_t *parse_logical(token_t *tokens, int *shift) {
-  ast_node_t *left = parse_pipe(tokens, shift);
-  while (is_logical(tokens + *shift)) {
+ast_node_t *parse_logical(token_list_t **it) {
+  ast_node_t *left = parse_pipe(it);
+  while (is_logical(it)) {
     ast_node_t *node = malloc(sizeof(ast_node_t));
-    node->type = to_ast_logical_type((tokens + *shift)->type);
-    *shift += 1;
-    node->data.log.right = parse_pipe(tokens, shift);
+    node->type = to_ast_logical_type(get_type(it));
+    next(it);
+    node->data.log.right = parse_pipe(it);
     node->data.log.left = left;
     left = node;
   }
@@ -145,15 +169,52 @@ ast_node_t *parse_logical(token_t *tokens, int *shift) {
   return left;
 }
 
-ast_node_t *parse_tokens(token_t *tokens) {
+ast_node_t *parse_tokens(token_list_t **tokens) {
   int *shift = malloc(sizeof(int));
-  ast_node_t *root = parse_logical(tokens, shift);
+  ast_node_t *root = parse_logical(tokens);
 #ifdef DEBUG
   puts("###########AST###########");
   print_ast_tree(root);
   puts("");
 #endif
   return root;
+}
+
+void parser_cleanup(ast_node_t *root) {
+  switch (root->type) {
+    case AST_CMD:
+      free(root->data.cmd.head);
+      for(int i = 0; i < MAX_PARAMS; i++) {
+        if(root->data.cmd.parameters[i] == NULL) {
+          break;
+        }
+        free(root->data.cmd.parameters[i]);
+      }
+      break;
+    case AST_OR_IF:
+    case AST_AND_IF:
+    case AST_SEMI:
+      parser_cleanup(root->data.log.left);
+      parser_cleanup(root->data.log.right);
+      break;
+    case AST_SUBSH:
+      parser_cleanup(root->data.subsh.content);
+      break;
+    case AST_REDIRECT:
+      parser_cleanup(root->data.redir.left);
+      free(root->data.redir.rdinfo.file);
+      break;
+    case AST_PIPE:
+      parser_cleanup(root->data.pipe.left);
+      parser_cleanup(root->data.pipe.right);
+      break;
+    case AST_SUBCMD:
+      parser_cleanup(root->data.cmdsub.cmd);
+      parser_cleanup(root->data.cmdsub.next);
+      // free(root->data.cmdsub.result); ALREADY FREED
+      break;
+  }  
+  free(root);
 }
 
 void print_ast_node(ast_node_t *node) {

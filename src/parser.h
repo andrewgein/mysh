@@ -61,6 +61,7 @@ struct ast_node_t {
   } data;
 };
 
-ast_node_t *parse_tokens(token_t *tokens);
+ast_node_t *parse_tokens(token_list_t **);
+void parser_cleanup(ast_node_t *root);
 
 #endif
