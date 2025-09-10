@@ -1,8 +1,12 @@
 #include "parser.h"
+#include "lexer.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define MISPRT_ERROR_MSG "parser: Synthax error - closing parenthesis missing!"
+#define UNSPTYPE_ERROR_MSG "parser: Unsupported logical type!"
 
 #ifdef DEBUG
 void print_ast_tree(ast_node_t *root);
@@ -23,9 +27,25 @@ ast_type_t to_ast_logical_type(token_type_t type) {
   case TK_SEMI:
     return AST_SEMI;
   default:
-    puts("parser: Unsupported logical type!");
+    puts(UNSPTYPE_ERROR_MSG);
     exit(1);
   }
+}
+
+ast_node_t *parse_subcmd(token_t *tokens, int *shift) {
+  if ((tokens + *shift)->type == TK_CMD_SUB_OPEN) {
+    ast_node_t *node = malloc(sizeof(ast_node_t));
+    *shift += 1;
+    node->type = AST_SUBCMD;
+    node->data.cmdsub.cmd = parse_logical(tokens, shift);
+    if ((tokens + *shift)->type != TK_CMD_SUB_CLOSE) {
+      puts(MISPRT_ERROR_MSG);
+      exit(1);
+    }
+    *shift += 1;
+    return node;
+  }
+  return NULL;
 }
 
 ast_node_t *parse_cmd(token_t *tokens, int *shift) {
@@ -33,13 +53,33 @@ ast_node_t *parse_cmd(token_t *tokens, int *shift) {
   if (cur == NULL) {
     return NULL;
   }
-  ast_node_t *node = malloc(sizeof(ast_node_t));
-  node->type = AST_CMD;
-  node->data.cmd.head = cur->data.cmd.head;
-  memcpy(node->data.cmd.parameters, cur->data.cmd.parameters,
-         sizeof(cur->data.cmd.parameters));
+  ast_node_t *result = malloc(sizeof(ast_node_t));
+  ast_node_t *cmdnode = result;
+  token_t arg;
+  cmdnode->type = AST_CMD;
+  cmdnode->data.cmd.head = cur->data.cmd.head;
+  int argn, i;
+  argn = 0;
+  for (i = 0; i < cur->data.cmd.argc; i++) {
+    arg = cur->data.cmd.parameters_array[i];
+    cmdnode->data.cmd.parameters[argn] = malloc(MAX_PARAM_LEN);
+    if (arg.type == TK_WORD) {
+      strcpy(cmdnode->data.cmd.parameters[argn], arg.data.word.str);
+    } else if (arg.type == TK_CMD_SUB_OPEN) {
+      ast_node_t *upper = malloc(sizeof(ast_node_t));
+      upper = parse_subcmd(cur->data.cmd.parameters_array, &i);
+      i--;
+      upper->data.cmdsub.result = cmdnode->data.cmd.parameters[argn];
+      upper->data.cmdsub.next = result;
+      result = upper;
+    } else {
+      puts(UNSPTYPE_ERROR_MSG);
+      exit(1);
+    }
+    argn++;
+  }
   *shift += 1;
-  return node;
+  return result;
 }
 
 ast_node_t *parse_subshell(token_t *tokens, int *shift) {
@@ -49,7 +89,7 @@ ast_node_t *parse_subshell(token_t *tokens, int *shift) {
     node->type = AST_SUBSH;
     node->data.subsh.content = parse_logical(tokens, shift);
     if ((tokens + *shift)->type != TK_SUBSH_CLOSE) {
-      puts("parser: Synthax error - closing parenthesis missing");
+      puts(MISPRT_ERROR_MSG);
       exit(1);
     }
     *shift += 1;
@@ -161,6 +201,11 @@ void print_ast_node(ast_node_t *node) {
              node->data.redir.rdinfo.file);
       break;
     }
+    break;
+  case AST_SUBCMD:
+    printf("SUBCMD\n");
+    print_ast_node(node->data.cmdsub.cmd);
+    print_ast_node(node->data.cmdsub.next);
     break;
 
   default:

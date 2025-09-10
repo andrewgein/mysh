@@ -4,11 +4,13 @@
 #include "lexer.h"
 
 #define MAX_PARAMS 80 // TODO: move all to one file
+#define MAX_PARAM_LEN 80
 
 typedef enum {
   AST_CMD,
   AST_PIPE,
   AST_SUBSH,
+  AST_SUBCMD,
   AST_SEMI,
   AST_AND_IF,
   AST_OR_IF,
@@ -41,6 +43,12 @@ typedef struct {
   ast_node_t *left;
 } ast_redir_t;
 
+typedef struct {
+  ast_node_t *cmd;
+  char *result;
+  ast_node_t *next;
+} ast_cmd_sub_t;
+
 struct ast_node_t { 
   ast_type_t type;
   union {
@@ -49,6 +57,7 @@ struct ast_node_t {
     ast_subsh_t subsh;
     ast_pipe_t   pipe;
     ast_redir_t redir;
+    ast_cmd_sub_t cmdsub;
   } data;
 };
 

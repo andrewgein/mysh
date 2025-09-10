@@ -15,11 +15,15 @@ typedef enum {
   TK_FD_NUMBER,
   TK_SUBSH_OPEN,
   TK_SUBSH_CLOSE,
+  TK_CMD_SUB_OPEN,
+  TK_CMD_SUB_CLOSE,
+  TK_VAR_EXP_START,
   TK_REDIRECT,
   TK_HEREDOC
 } token_type_t;
 
 typedef struct token_t token_t;
+typedef list_node_t token_list_t;
 
 typedef struct {
 } token_base_t;
@@ -30,7 +34,9 @@ typedef struct {
 
 typedef struct {
   char *head;
-  char *parameters[MAX_PARAMS];
+  token_list_t *parameters;
+  token_t *parameters_array; // TODO remove this mf
+  int argc;
 } cmd_token_t;
 
 typedef struct {
@@ -69,7 +75,6 @@ struct token_t {
   } data;
 };
 
-typedef list_node_t token_list_t;
 
 int get_tokens(char *buf, int bufsize, token_t *tokens);
 

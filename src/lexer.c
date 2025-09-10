@@ -40,7 +40,6 @@ int get_tokens(char *buf, int bufsize, token_t *tokens) {
   int shift;
   int read;
   token_list_t *tklist = NULL;
-  token_list_t *head;
   shift = 0;
   memset(buf, 0, bufsize);
   bufp = buf;
@@ -69,21 +68,18 @@ int get_tokens(char *buf, int bufsize, token_t *tokens) {
   while ((token = get_token(buf, &shift)) != NULL) {
     if (tklist == NULL) {
       tklist = init(token);
-      head = tklist;
     } else {
-      add_item(head, token);
-      head = head->next;
+      push_back(tklist, token);
     }
     bufp += shift;
-    n++;
   }
   tklist = merge_tokens(tklist);
-  head = tklist;
-  for (int i = 0; head != NULL; i++) {
-    tokens[i] = *(token_t *)head->data;
-    head = head->next;
+  for (int i = 0; get_item(tklist, i) != NULL; i++) {
+    tokens[i] = *(token_t *)get_item(tklist, i)->data;
+    n++;
   }
 #ifdef DEBUG
+  puts("\n###########TOKENS###########");
   print_tokens(tokens, get_length(tklist));
 #endif
   return n;
@@ -146,7 +142,33 @@ token_t *read_io_number(char *buf, int *shift) {
   return token;
 }
 
+token_type_t peek_opened_token(list_node_t *opened_tokens) {
+  if (get_length(opened_tokens) == 0) {
+    puts("Error: unclosed parenthesis");
+    exit(1);
+  }
+  token_type_t tk = *(token_type_t *)get_last(opened_tokens)->data;
+  if (get_length(opened_tokens) == 1) {
+    destroy(opened_tokens);
+  } else {
+    destroy_next(get_item(opened_tokens, get_length(opened_tokens) - 2));
+  }
+  return tk;
+}
+
+list_node_t *put_opened_token(token_type_t tk, list_node_t *opened_tokens) {
+  token_type_t *tkp = malloc(sizeof(token_type_t));
+  *tkp = tk;
+  if (opened_tokens == NULL) {
+    return init(tkp);
+  }
+  push_back(opened_tokens, tkp);
+  return opened_tokens;
+}
+
 token_t *get_token(char *buf, int *shift) {
+  static list_node_t *opened_tokens;
+
   token_t *token;
   char *cur;
   char *next;
@@ -193,12 +215,27 @@ token_t *get_token(char *buf, int *shift) {
     *shift += 1;
     break;
   case '(':
-    token->type = TK_SUBSH_OPEN;
     *shift += 1;
+    token->type = TK_SUBSH_OPEN;
+    opened_tokens = put_opened_token(TK_SUBSH_OPEN, opened_tokens);
     break;
   case ')':
-    token->type = TK_SUBSH_CLOSE;
+    if (get_length(opened_tokens) == 0) {
+      report_synthax_error(buf, shift);
+    }
     *shift += 1;
+    token_type_t tokent;
+    switch (peek_opened_token(opened_tokens)) {
+    case TK_SUBSH_OPEN:
+      token->type = TK_SUBSH_CLOSE;
+      break;
+    case TK_CMD_SUB_OPEN:
+      token->type = TK_CMD_SUB_CLOSE;
+      break;
+    default:
+      report_synthax_error(buf, shift);
+      break;
+    }
     break;
 
   case '>':
@@ -226,6 +263,17 @@ token_t *get_token(char *buf, int *shift) {
     } else {
       token->type = TK_REDIRECT;
       token->data.redir.type = RD_IN;
+      *shift += 1;
+    }
+    break;
+
+  case '$':
+    if (*next == '(') {
+      token->type = TK_CMD_SUB_OPEN;
+      *shift += 2;
+      opened_tokens = put_opened_token(TK_CMD_SUB_OPEN, opened_tokens);
+    } else {
+      token->type = TK_VAR_EXP_START;
       *shift += 1;
     }
     break;
@@ -262,15 +310,57 @@ token_list_t *merge_tokens(token_list_t *head) {
   case TK_WORD:
     curtk->type = TK_CMD;
     curtk->data.cmd.head = curtk->data.word.str;
-    curtk->data.cmd.parameters[0] = curtk->data.cmd.head;
-    for (int i = 1; nexttk != NULL && nexttk->type == TK_WORD; i++) {
-      curtk->data.cmd.parameters[i] = nexttk->data.word.str;
-      remove_next(head);
+    token_t *first_parameter = malloc(sizeof(token_t));
+    first_parameter->type = TK_WORD;
+    first_parameter->data.word.str = curtk->data.cmd.head;
+    curtk->data.cmd.parameters = init(first_parameter);
+    token_list_t *origin = head;
+    for (int i = 1; nexttk != NULL; i++) {
+      if (nexttk->type == TK_CMD_SUB_CLOSE) {
+        //TODO remove this
+        curtk->data.cmd.parameters_array =
+            calloc(get_length(curtk->data.cmd.parameters), sizeof(token_t));
+        for (int j = 0; get_item(curtk->data.cmd.parameters, j) != NULL; j++) {
+          curtk->data.cmd.parameters_array[j] =
+              *(token_t *)get_item(curtk->data.cmd.parameters, j)->data;
+        }
+        curtk->data.cmd.argc = get_length(curtk->data.cmd.parameters);
+        return head->next;
+      }
+      if (nexttk->type != TK_WORD && nexttk->type != TK_CMD_SUB_OPEN) {
+        break;
+      }
+      if (nexttk->type == TK_WORD) {
+        push_back(curtk->data.cmd.parameters, nexttk);
+        remove_next(head);
+      } else if (nexttk->type == TK_CMD_SUB_OPEN) {
+        head = merge_tokens(head->next->next);
+        for (list_node_t *it = origin->next; it != head; it = it->next) {
+          push_back(curtk->data.cmd.parameters, it->data);
+        }
+        push_back(curtk->data.cmd.parameters, head->data);
+        for (list_node_t *it = origin->next; it != head; it = it->next) {
+          remove_next(it);
+        }
+        remove_next(origin); // OPEN
+        remove_next(origin); // CLOSE
+        head = origin;       // head = CLOSE(deleted) -> head = CMD
+      }
+
       if (head->next == NULL) {
         break;
       }
       nexttk = head->next->data;
     }
+    //TODO remove this
+    curtk->data.cmd.parameters_array =
+        calloc(get_length(curtk->data.cmd.parameters), sizeof(token_t));
+    for (int j = 0; get_item(curtk->data.cmd.parameters, j) != NULL; j++) {
+      curtk->data.cmd.parameters_array[j] =
+          *(token_t *)get_item(curtk->data.cmd.parameters, j)->data;
+    }
+    curtk->data.cmd.argc = get_length(curtk->data.cmd.parameters);
+
     break;
   case TK_FD_NUMBER:
     if (nexttk == NULL || nexttk->type != TK_REDIRECT) {
@@ -285,6 +375,9 @@ token_list_t *merge_tokens(token_list_t *head) {
     merge_tokens(head);
     break;
 
+  case TK_CMD_SUB_CLOSE:
+    return head;
+
   default:
     break;
   }
@@ -295,7 +388,6 @@ token_list_t *merge_tokens(token_list_t *head) {
 void print_tokens(token_t *tokens, int n) {
   token_t *tokenp;
   cmd_token_t cmd;
-  puts("\n###########TOKENS###########");
   for (int i = 0; i < n; i++) {
     tokenp = tokens + i;
     printf("%d\n", i);
@@ -308,11 +400,13 @@ void print_tokens(token_t *tokens, int n) {
       cmd = tokenp->data.cmd;
       puts("type: command");
       printf("head: %s\n", cmd.head);
-      printf("argv: ");
-      for (int i = 0; cmd.parameters[i] != NULL; i++) {
-        printf("%s, ", cmd.parameters[i]);
+      puts("/////////ARGUMENTS//////////");
+      for (int j = 0; get_item(cmd.parameters, j) != NULL; j++) {
+        printf("%d", j);
+        print_tokens(get_item(cmd.parameters, j)->data, 1);
       }
       printf("NULL\n");
+      puts("\\\\\\\\\\\\\\\\\\ARGUMENTS\\\\END\\\\\\\\\\\\\\\\\\\\");
       break;
     case TK_SEMI:
       puts("type: SEMI");
@@ -328,6 +422,12 @@ void print_tokens(token_t *tokens, int n) {
       break;
     case TK_SUBSH_CLOSE:
       puts("type: SUBSH_CLOSE");
+      break;
+    case TK_CMD_SUB_OPEN:
+      puts("type: CMD_SUB_OPEN");
+      break;
+    case TK_CMD_SUB_CLOSE:
+      puts("type: CMD_SUB_CLOSE");
       break;
     case TK_PIPE:
       puts("type: PIPE");

@@ -1,5 +1,6 @@
 #include "runner.h"
 #include "lexer.h"
+#include "parser.h"
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -50,6 +51,8 @@ int run(ast_node_t *root) {
   int stdinfd, stdoutfd;
   pid_t pid;
   redir_token_t info;
+  FILE *memstream;
+  size_t streamsz = MAX_PARAM_LEN;
   switch (root->type) {
 
   case AST_CMD:
@@ -181,6 +184,29 @@ int run(ast_node_t *root) {
       return lstatus;
     }
     break;
+
+  case AST_SUBCMD:
+    pipe(pipefd);
+    if (fork() == 0) {
+      close(STDOUT_FILENO);
+      close(pipefd[0]);
+      dup2(pipefd[1], STDOUT_FILENO);
+      close(pipefd[1]);
+      lstatus = run(root->data.cmdsub.cmd);
+      exit(0);
+    } else {
+      close(pipefd[1]);
+      size_t capacity = streamsz;
+      size_t size = 0;
+      ssize_t bytes_read;
+      char chunk[1024];
+      waitpid(-1, &lstatus, 0);
+      size = read(pipefd[0], root->data.cmdsub.result, streamsz);
+      close(pipefd[0]);
+      root->data.cmdsub.result[size - 1] = '\0';
+      rstatus = run(root->data.cmdsub.next);
+    }
+    return lstatus;
 
   default:
     printf("runner: Unsupported operation %d\n", root->type);
