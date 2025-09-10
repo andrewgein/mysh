@@ -378,6 +378,10 @@ token_list_t *merge_tokens(token_list_t *head) {
   case TK_CMD_SUB_CLOSE:
     return head;
 
+  case TK_CMD_SUB_OPEN:
+    puts("TK_CMD_SUB_OPEN Error! (command substitution without parant command) TODO: add buf_shift");
+    exit(1);
+
   default:
     break;
   }
