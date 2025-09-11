@@ -202,7 +202,7 @@ void parser_cleanup(ast_node_t *root) {
       break;
     case AST_REDIRECT:
       parser_cleanup(root->data.redir.left);
-      free(root->data.redir.rdinfo.file);
+      // free(root->data.redir.rdinfo.file); ALREADY FREED
       break;
     case AST_PIPE:
       parser_cleanup(root->data.pipe.left);

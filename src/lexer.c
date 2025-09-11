@@ -300,6 +300,7 @@ token_list_t *merge_tokens(token_list_t *head) {
       puts("TK_REDIRECT Error! TODO: add buf_shift");
       exit(1);
     }
+    curtk->data.redir.fd = -1;
     curtk->data.redir.file = nexttk->data.word.str;
     remove_next(head);
     break;

@@ -136,7 +136,7 @@ int run(ast_node_t *root) {
       return lstatus;
 
     case RD_OUT:
-      if ((outputfd = open(info.file, O_CREAT | O_TRUNC | O_WRONLY, 644)) < 0) {
+      if ((outputfd = open(info.file, O_CREAT | O_TRUNC | O_WRONLY, 0644)) < 0) {
         printf("Cannot open file %s\n", info.file);
         exit(1);
       }
@@ -152,7 +152,7 @@ int run(ast_node_t *root) {
       return lstatus;
 
     case APP_OUT:
-      if ((outputfd = open(info.file, O_CREAT | O_TRUNC | O_WRONLY, 644)) < 0) {
+      if ((outputfd = open(info.file, O_CREAT | O_TRUNC | O_WRONLY, 0644)) < 0) {
         printf("Cannot open file %s\n", info.file);
         exit(1);
       }
@@ -194,18 +194,15 @@ int run(ast_node_t *root) {
       close(pipefd[1]);
       lstatus = run(root->data.cmdsub.cmd);
       exit(0);
-    } else {
-      close(pipefd[1]);
-      size_t capacity = streamsz;
-      size_t size = 0;
-      ssize_t bytes_read;
-      char chunk[1024];
-      waitpid(-1, &lstatus, 0);
-      size = read(pipefd[0], root->data.cmdsub.result, streamsz);
-      close(pipefd[0]);
-      root->data.cmdsub.result[size - 1] = '\0';
-      rstatus = run(root->data.cmdsub.next);
     }
+    close(pipefd[1]);
+    size_t size = 0;
+    char chunk[1024];
+    waitpid(-1, &lstatus, 0);
+    size = read(pipefd[0], root->data.cmdsub.result, streamsz);
+    close(pipefd[0]);
+    root->data.cmdsub.result[size - 1] = '\0';
+    rstatus = run(root->data.cmdsub.next);
     return lstatus;
 
   default:
