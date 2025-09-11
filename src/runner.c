@@ -185,7 +185,7 @@ int run(ast_node_t *root) {
     }
     break;
 
-  case AST_SUBCMD:
+  case AST_CMDSUB:
     pipe(pipefd);
     if (fork() == 0) {
       close(STDOUT_FILENO);

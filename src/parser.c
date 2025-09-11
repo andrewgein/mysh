@@ -58,7 +58,7 @@ ast_node_t *parse_subcmd(token_list_t **it) {
   if (get_type(it) == TK_CMD_SUB_OPEN) {
     ast_node_t *node = malloc(sizeof(ast_node_t));
     next(it);
-    node->type = AST_SUBCMD;
+    node->type = AST_CMDSUB;
     node->data.cmdsub.cmd = parse_logical(it);
     if (get_type(it) != TK_CMD_SUB_CLOSE) {
       puts(MISPRT_ERROR_MSG);
@@ -208,7 +208,7 @@ void parser_cleanup(ast_node_t *root) {
       parser_cleanup(root->data.pipe.left);
       parser_cleanup(root->data.pipe.right);
       break;
-    case AST_SUBCMD:
+    case AST_CMDSUB:
       parser_cleanup(root->data.cmdsub.cmd);
       parser_cleanup(root->data.cmdsub.next);
       // free(root->data.cmdsub.result); ALREADY FREED
@@ -263,7 +263,7 @@ void print_ast_node(ast_node_t *node) {
       break;
     }
     break;
-  case AST_SUBCMD:
+  case AST_CMDSUB:
     printf("SUBCMD\n");
     print_ast_node(node->data.cmdsub.cmd);
     print_ast_node(node->data.cmdsub.next);

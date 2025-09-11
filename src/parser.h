@@ -10,7 +10,7 @@ typedef enum {
   AST_CMD,
   AST_PIPE,
   AST_SUBSH,
-  AST_SUBCMD,
+  AST_CMDSUB,
   AST_SEMI,
   AST_AND_IF,
   AST_OR_IF,
