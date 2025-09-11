@@ -21,7 +21,7 @@ TEST("basic command") {
 
     int n;
     char buf[80];
-    token_list_t *tklist = get_tokens(buf, 80);
+    token_list_t *tklist = get_tokens();
     token_t *cmd = get_tp(tklist, 0);
     token_list_t *parameters = cmd->data.cmd.parameters;
     ASSERT(cmd->type == TK_CMD);
@@ -46,7 +46,7 @@ TEST("basic log") {
     dup2(pipefd[0], STDIN_FILENO);
 
     char buf[80];
-    token_list_t *tklist = get_tokens(buf, 80);
+    token_list_t *tklist = get_tokens();
     ASSERT(get_length(tklist) == 5);
     ASSERT(get_tp(tklist, 0)->type == TK_CMD);
     ASSERT(get_tp(tklist, 1)->type == TK_AND_IF);
@@ -72,7 +72,7 @@ TEST("basic subshell") {
 
     char buf[80];
     token_t *tokens = calloc(80, sizeof(token_t));
-    token_list_t *tklist = get_tokens(buf, 80);
+    token_list_t *tklist = get_tokens();
     ASSERT(get_length(tklist) == 7);
     ASSERT(get_tp(tklist, 0)->type == TK_SUBSH_OPEN);
     ASSERT(get_tp(tklist, 1)->type == TK_CMD);
@@ -100,7 +100,7 @@ TEST("basic cmdsub") {
 
     char buf[80];
     token_t *tokens = calloc(80, sizeof(token_t));
-    token_list_t *tklist = get_tokens(buf, 80);
+    token_list_t *tklist = get_tokens();
     ASSERT(get_length(tklist) == 1);
 
     ASSERT(get_tp(tklist, 0)->type == TK_CMD);

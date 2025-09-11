@@ -7,6 +7,16 @@
 
 #define COMMAND_MAX_S 80
 
+#define L_SYNTHAX_ERROR "lexer: Synthax error near -> %s\n"
+#define L_USYNTHAX_ERROR "lexer: Synthax error"
+#define L_MLLC_ERROR "lexer: Malloc error"
+#define L_MISPRT_ERROR_MSG "lexer: Error: unclosed parenthesis"
+#define L_REDIR_ERROR_MSG "lexer: TK_REDIRECT Error! TODO: add buf_shift"
+#define L_FDN_ERROR_MSG "lexer: TK_FD_NUMBER Error! TODO: add buf_shift"
+#define L_CMDSUB_ERROR_MSG                                                     \
+  "lexer: TK_CMD_SUB_OPEN Error! (command substitution without parent "        \
+  "command) TODO: add buf_shift"
+
 const char whitespace[] = "\t\r\n\v ";
 const char breaksymbols[] = "&|;()<>";
 
@@ -22,7 +32,7 @@ void report_synthax_error(char *buf, int *shift) {
   if (*shift + 10 < COMMAND_MAX_S) {
     buf[*shift + 10] = '\0';
   }
-  printf("Synthax error near -> %s\n", buf + *shift);
+  printf(L_SYNTHAX_ERROR, buf + *shift);
   exit(1);
 }
 
@@ -34,7 +44,6 @@ int is_end_of_input(char *buf) {
 }
 
 token_list_t *get_tokens() {
-  int n;
   token_t *token;
   char *bufp;
   int shift;
@@ -57,7 +66,7 @@ token_list_t *get_tokens() {
     } else if (read >= 2 && bufp[read - 2] == '&') {
       bufp[read - 1] = ' ';
     } else {
-      puts("Synthax error");
+      puts(L_USYNTHAX_ERROR);
       exit(1);
     }
     bufp += read;
@@ -67,7 +76,6 @@ token_list_t *get_tokens() {
 
   buf[strlen(buf) - 1] = 0;
   bufp = buf;
-  n = 0;
   while ((token = get_token(buf, &shift)) != NULL) {
     if (tklist == NULL) {
       tklist = init(token);
@@ -119,7 +127,7 @@ char *read_word(char *buf, int *shift) {
   }
   word = malloc(sizeof(char) * (tokenendp - tokenstartp + 1));
   if (word == NULL) {
-    puts("MALLOC ERROR");
+    puts(L_MLLC_ERROR);
     exit(1);
   }
   memcpy(word, tokenstartp, (tokenendp - tokenstartp));
@@ -140,7 +148,7 @@ token_t *read_io_number(char *buf, int *shift) {
   }
   token = malloc(sizeof(token_t));
   if (token == NULL) {
-    puts("MALLOC ERROR");
+    puts(L_MLLC_ERROR);
     exit(1);
   }
   token->type = TK_FD_NUMBER;
@@ -151,7 +159,7 @@ token_t *read_io_number(char *buf, int *shift) {
 
 token_type_t peek_opened_token(list_node_t *opened_tokens) {
   if (get_length(opened_tokens) == 0) {
-    puts("Error: unclosed parenthesis");
+    puts(L_MISPRT_ERROR_MSG);
     exit(1);
   }
   token_type_t tk = *(token_type_t *)get_last(opened_tokens)->data;
@@ -166,7 +174,7 @@ token_type_t peek_opened_token(list_node_t *opened_tokens) {
 list_node_t *put_opened_token(token_type_t tk, list_node_t *opened_tokens) {
   token_type_t *tkp = malloc(sizeof(token_type_t));
   if (tkp == NULL) {
-    puts("MALLOC ERROR");
+    puts(L_MLLC_ERROR);
     exit(1);
   }
   *tkp = tk;
@@ -196,7 +204,7 @@ token_t *get_token(char *buf, int *shift) {
 
   token = malloc(sizeof(token_t));
   if (token == NULL) {
-    puts("MALLOC ERROR");
+    puts(L_MLLC_ERROR);
     exit(1);
   }
   switch (*cur) {
@@ -316,7 +324,7 @@ token_list_t *merge_tokens(token_list_t *head) {
   switch (curtk->type) {
   case TK_REDIRECT:
     if (nexttk == NULL || nexttk->type != TK_WORD) {
-      puts("TK_REDIRECT Error! TODO: add buf_shift");
+      puts(L_REDIR_ERROR_MSG);
       exit(1);
     }
     curtk->data.redir.fd = -1;
@@ -328,13 +336,13 @@ token_list_t *merge_tokens(token_list_t *head) {
     curtk->data.cmd.head = curtk->data.word.str;
     token_t *first_parameter = malloc(sizeof(token_t));
     if (first_parameter == NULL) {
-      puts("MALLOC ERROR");
+      puts(L_MLLC_ERROR);
       exit(1);
     }
     first_parameter->type = TK_WORD;
     first_parameter->data.word.str = malloc(strlen(curtk->data.cmd.head) + 1);
     if (first_parameter->data.word.str == NULL) {
-      puts("MALLOC ERROR");
+      puts(L_MLLC_ERROR);
       exit(1);
     }
     strcpy(first_parameter->data.word.str, curtk->data.cmd.head);
@@ -373,7 +381,7 @@ token_list_t *merge_tokens(token_list_t *head) {
     break;
   case TK_FD_NUMBER:
     if (nexttk == NULL || nexttk->type != TK_REDIRECT) {
-      puts("TK_FD_NUMBER Error! TODO: add buf_shift");
+      puts(L_FDN_ERROR_MSG);
       exit(1);
     }
     fd = curtk->data.fd_num.fd;
@@ -388,8 +396,7 @@ token_list_t *merge_tokens(token_list_t *head) {
     return head;
 
   case TK_CMD_SUB_OPEN:
-    puts("TK_CMD_SUB_OPEN Error! (command substitution without parant command) "
-         "TODO: add buf_shift");
+    puts(L_CMDSUB_ERROR_MSG);
     exit(1);
 
   default:

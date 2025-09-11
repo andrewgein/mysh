@@ -5,9 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MISPRT_ERROR_MSG "parser: Synthax error - closing parenthesis missing!"
-#define UNSPTYPE_ERROR_MSG "parser: Unsupported logical type!"
-#define MLLC_ERROR_MSG "parser: Malloc error"
+#define P_MISPRT_ERROR_MSG "parser: Synthax error - closing parenthesis missing!"
+#define P_UNSPTYPE_ERROR_MSG "parser: Unsupported logical type!"
+#define P_MLLC_ERROR_MSG "parser: Malloc error"
 
 #ifdef DEBUG
 void print_ast_tree(ast_node_t *root);
@@ -29,7 +29,7 @@ ast_type_t to_ast_logical_type(token_type_t type) {
   case TK_SEMI:
     return AST_SEMI;
   default:
-    puts(UNSPTYPE_ERROR_MSG);
+    puts(P_UNSPTYPE_ERROR_MSG);
     exit(1);
   }
 }
@@ -59,14 +59,14 @@ ast_node_t *parse_subcmd(token_list_t **it) {
   if (get_type(it) == TK_CMD_SUB_OPEN) {
     ast_node_t *node = malloc(sizeof(ast_node_t));
     if (node == NULL) {
-      puts(MLLC_ERROR_MSG);
+      puts(P_MLLC_ERROR_MSG);
       exit(1);
     }
     next(it);
     node->type = AST_CMDSUB;
     node->data.cmdsub.cmd = parse_logical(it);
     if (get_type(it) != TK_CMD_SUB_CLOSE) {
-      puts(MISPRT_ERROR_MSG);
+      puts(P_MISPRT_ERROR_MSG);
       exit(1);
     }
     next(it);
@@ -81,7 +81,7 @@ ast_node_t *parse_cmd(token_list_t **it) {
   }
   ast_node_t *result = malloc(sizeof(ast_node_t));
   if (result == NULL) {
-    puts(MLLC_ERROR_MSG);
+    puts(P_MLLC_ERROR_MSG);
     exit(1);
   }
   ast_node_t *cmdnode = result;
@@ -89,7 +89,7 @@ ast_node_t *parse_cmd(token_list_t **it) {
   cmdnode->type = AST_CMD;
   cmdnode->data.cmd.head = malloc(strlen(get(it)->data.cmd.head) + 1);
   if (cmdnode->data.cmd.head == NULL) {
-    puts(MLLC_ERROR_MSG);
+    puts(P_MLLC_ERROR_MSG);
     exit(1);
   }
   strcpy(cmdnode->data.cmd.head, get(it)->data.cmd.head);
@@ -97,7 +97,7 @@ ast_node_t *parse_cmd(token_list_t **it) {
   while (arg != NULL) {
     cmdnode->data.cmd.parameters[argn] = malloc(MAX_PARAM_LEN);
     if (cmdnode->data.cmd.parameters[argn] == NULL) {
-      puts(MLLC_ERROR_MSG);
+      puts(P_MLLC_ERROR_MSG);
       exit(1);
     }
     if (get_type(&arg) == TK_WORD) {
@@ -110,7 +110,7 @@ ast_node_t *parse_cmd(token_list_t **it) {
       upper->data.cmdsub.next = result;
       result = upper;
     } else {
-      puts(UNSPTYPE_ERROR_MSG);
+      puts(P_UNSPTYPE_ERROR_MSG);
       exit(1);
     }
     argn++;
@@ -123,14 +123,14 @@ ast_node_t *parse_subshell(token_list_t **it) {
   if (get_type(it) == TK_SUBSH_OPEN) {
     ast_node_t *node = malloc(sizeof(ast_node_t));
     if (node == NULL) {
-      puts(MLLC_ERROR_MSG);
+      puts(P_MLLC_ERROR_MSG);
       exit(1);
     }
     next(it);
     node->type = AST_SUBSH;
     node->data.subsh.content = parse_logical(it);
     if (get_type(it) != TK_SUBSH_CLOSE) {
-      puts(MISPRT_ERROR_MSG);
+      puts(P_MISPRT_ERROR_MSG);
       exit(1);
     }
     next(it);
@@ -144,7 +144,7 @@ ast_node_t *parse_redirection(token_list_t **it) {
   if (get_type(it) == TK_REDIRECT) {
     ast_node_t *node = malloc(sizeof(ast_node_t));
     if (node == NULL) {
-      puts(MLLC_ERROR_MSG);
+      puts(P_MLLC_ERROR_MSG);
       exit(1);
     }
     node->type = AST_REDIRECT;
@@ -161,7 +161,7 @@ ast_node_t *parse_pipe(token_list_t **it) {
   while (get_type(it) == TK_PIPE) {
     ast_node_t *node = malloc(sizeof(ast_node_t));
     if (node == NULL) {
-      puts(MLLC_ERROR_MSG);
+      puts(P_MLLC_ERROR_MSG);
       exit(1);
     }
     next(it);
@@ -189,7 +189,7 @@ ast_node_t *parse_logical(token_list_t **it) {
   while (is_logical(it)) {
     ast_node_t *node = malloc(sizeof(ast_node_t));
     if (node == NULL) {
-      puts(MLLC_ERROR_MSG);
+      puts(P_MLLC_ERROR_MSG);
       exit(1);
     }
     node->type = to_ast_logical_type(get_type(it));
