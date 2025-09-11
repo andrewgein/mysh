@@ -1,9 +1,14 @@
 #include "list.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 
 list_node_t *init(void *data) {
   list_node_t *head = malloc(sizeof(data));
+  if (head == NULL) {
+    puts("MALLOC ERROR");
+    exit(1);
+  }
   head->data = data;
   head->next = NULL;
   return head;

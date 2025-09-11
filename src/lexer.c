@@ -33,29 +33,32 @@ int is_end_of_input(char *buf) {
            (buflen >= 3 && buf[buflen - 2] == '|' && buf[buflen - 3] == '|'));
 }
 
-token_list_t *get_tokens(char *buf, int bufsize) {
+token_list_t *get_tokens() {
   int n;
   token_t *token;
   char *bufp;
   int shift;
-  int read;
   token_list_t *tklist = NULL;
   shift = 0;
-  memset(buf, 0, bufsize);
+  char buf[80] = {0};
   bufp = buf;
+  int bufsize = 80;
 
   for (;;) {
     fgets(bufp, bufsize, stdin);
     if (is_end_of_input(bufp)) {
       break;
     }
-    read = strlen(bufp);
-    if (bufp[read - 2] == '\\') {
+    int read = strlen(bufp);
+    if (read >= 2 && bufp[read - 2] == '\\') {
       bufp[read - 1] = '\0';
       bufp[read - 2] = '\0';
       read -= 2;
-    } else if (bufp[read - 2] == '&') {
+    } else if (read >= 2 && bufp[read - 2] == '&') {
       bufp[read - 1] = ' ';
+    } else {
+      puts("Synthax error");
+      exit(1);
     }
     bufp += read;
     bufsize -= read;
@@ -115,6 +118,10 @@ char *read_word(char *buf, int *shift) {
     return NULL;
   }
   word = malloc(sizeof(char) * (tokenendp - tokenstartp + 1));
+  if (word == NULL) {
+    puts("MALLOC ERROR");
+    exit(1);
+  }
   memcpy(word, tokenstartp, (tokenendp - tokenstartp));
   word[tokenendp - tokenstartp] = 0;
   *shift = bufp - buf;
@@ -132,6 +139,10 @@ token_t *read_io_number(char *buf, int *shift) {
     return NULL;
   }
   token = malloc(sizeof(token_t));
+  if (token == NULL) {
+    puts("MALLOC ERROR");
+    exit(1);
+  }
   token->type = TK_FD_NUMBER;
   token->data.fd_num.fd = *cur - '0';
   (*shift)++;
@@ -154,6 +165,10 @@ token_type_t peek_opened_token(list_node_t *opened_tokens) {
 
 list_node_t *put_opened_token(token_type_t tk, list_node_t *opened_tokens) {
   token_type_t *tkp = malloc(sizeof(token_type_t));
+  if (tkp == NULL) {
+    puts("MALLOC ERROR");
+    exit(1);
+  }
   *tkp = tk;
   if (opened_tokens == NULL) {
     return init(tkp);
@@ -180,6 +195,10 @@ token_t *get_token(char *buf, int *shift) {
   }
 
   token = malloc(sizeof(token_t));
+  if (token == NULL) {
+    puts("MALLOC ERROR");
+    exit(1);
+  }
   switch (*cur) {
   case '&':
     if (*next == '&') {
@@ -308,8 +327,16 @@ token_list_t *merge_tokens(token_list_t *head) {
     curtk->type = TK_CMD;
     curtk->data.cmd.head = curtk->data.word.str;
     token_t *first_parameter = malloc(sizeof(token_t));
+    if (first_parameter == NULL) {
+      puts("MALLOC ERROR");
+      exit(1);
+    }
     first_parameter->type = TK_WORD;
-    first_parameter->data.word.str = malloc(strlen(curtk->data.cmd.head));
+    first_parameter->data.word.str = malloc(strlen(curtk->data.cmd.head) + 1);
+    if (first_parameter->data.word.str == NULL) {
+      puts("MALLOC ERROR");
+      exit(1);
+    }
     strcpy(first_parameter->data.word.str, curtk->data.cmd.head);
     curtk->data.cmd.parameters = init(first_parameter);
     token_list_t *origin = head;
@@ -361,7 +388,8 @@ token_list_t *merge_tokens(token_list_t *head) {
     return head;
 
   case TK_CMD_SUB_OPEN:
-    puts("TK_CMD_SUB_OPEN Error! (command substitution without parant command) TODO: add buf_shift");
+    puts("TK_CMD_SUB_OPEN Error! (command substitution without parant command) "
+         "TODO: add buf_shift");
     exit(1);
 
   default:
@@ -372,31 +400,31 @@ token_list_t *merge_tokens(token_list_t *head) {
 }
 
 void lexer_cleanup(token_list_t *tokens) {
-  if(tokens == NULL) {
+  if (tokens == NULL) {
     return;
   }
   token_t *tokenp = tokens->data;
   token_list_t dummy;
   switch (tokenp->type) {
-    case TK_WORD:
-      free(tokenp->data.word.str);
-      break;
-    case TK_CMD:
-      free(tokenp->data.cmd.head);
-      lexer_cleanup(tokenp->data.cmd.parameters);
-      break;
-    case TK_PIPE:
-      dummy.next = NULL;
-      dummy.data = tokenp->data.pipe.left;
-      lexer_cleanup(&dummy);
-      dummy.data = tokenp->data.pipe.right;
-      lexer_cleanup(&dummy);
-      break;
-    case TK_REDIRECT:
-      free(tokenp->data.redir.file);
-      break;
-    default:
-     break;
+  case TK_WORD:
+    free(tokenp->data.word.str);
+    break;
+  case TK_CMD:
+    free(tokenp->data.cmd.head);
+    lexer_cleanup(tokenp->data.cmd.parameters);
+    break;
+  case TK_PIPE:
+    dummy.next = NULL;
+    dummy.data = tokenp->data.pipe.left;
+    lexer_cleanup(&dummy);
+    dummy.data = tokenp->data.pipe.right;
+    lexer_cleanup(&dummy);
+    break;
+  case TK_REDIRECT:
+    free(tokenp->data.redir.file);
+    break;
+  default:
+    break;
   }
   token_list_t *cur = tokens;
   tokens = cur->next;

@@ -32,11 +32,10 @@ void type_prompt() {
 }
 
 int main(int argc, char **argv) {
-  int status;
   static char buf[MAX_PARAMS*(PARAM_MAX_S + 1)];
   type_prompt();
   token_list_t *tokens, *start;
-  while((tokens = get_tokens(buf, sizeof(buf)))) {
+  while((tokens = get_tokens())) {
     start = tokens;
     ast_node_t *root = parse_tokens(&start);
 #ifdef DEBUG
@@ -50,5 +49,5 @@ int main(int argc, char **argv) {
     parser_cleanup(root);
     type_prompt();
   }
-  return status;
+  return 0;
 }

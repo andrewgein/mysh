@@ -74,7 +74,7 @@ struct token_t {
 };
 
 
-token_list_t *get_tokens(char *buf, int bufsize);
+token_list_t *get_tokens();
 void lexer_cleanup(token_list_t *tokens);
 
 #endif

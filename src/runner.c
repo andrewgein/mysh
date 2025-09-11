@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -152,7 +153,7 @@ int run(ast_node_t *root) {
       return lstatus;
 
     case APP_OUT:
-      if ((outputfd = open(info.file, O_CREAT | O_TRUNC | O_WRONLY, 0644)) < 0) {
+      if ((outputfd = open(info.file, O_CREAT | O_APPEND | O_WRONLY, 0644)) < 0) {
         printf("Cannot open file %s\n", info.file);
         exit(1);
       }
@@ -199,11 +200,15 @@ int run(ast_node_t *root) {
     size_t size = 0;
     char chunk[1024];
     waitpid(-1, &lstatus, 0);
+    if (!lstatus) {
+      puts("Error in command substitution expression");
+      exit(1);
+    }
     size = read(pipefd[0], root->data.cmdsub.result, streamsz);
     close(pipefd[0]);
     root->data.cmdsub.result[size - 1] = '\0';
     rstatus = run(root->data.cmdsub.next);
-    return lstatus;
+    return rstatus;
 
   default:
     printf("runner: Unsupported operation %d\n", root->type);

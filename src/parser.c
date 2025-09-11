@@ -7,6 +7,7 @@
 
 #define MISPRT_ERROR_MSG "parser: Synthax error - closing parenthesis missing!"
 #define UNSPTYPE_ERROR_MSG "parser: Unsupported logical type!"
+#define MLLC_ERROR_MSG "parser: Malloc error"
 
 #ifdef DEBUG
 void print_ast_tree(ast_node_t *root);
@@ -57,6 +58,10 @@ token_type_t get_type(token_list_t **it) {
 ast_node_t *parse_subcmd(token_list_t **it) {
   if (get_type(it) == TK_CMD_SUB_OPEN) {
     ast_node_t *node = malloc(sizeof(ast_node_t));
+    if (node == NULL) {
+      puts(MLLC_ERROR_MSG);
+      exit(1);
+    }
     next(it);
     node->type = AST_CMDSUB;
     node->data.cmdsub.cmd = parse_logical(it);
@@ -75,14 +80,26 @@ ast_node_t *parse_cmd(token_list_t **it) {
     return NULL;
   }
   ast_node_t *result = malloc(sizeof(ast_node_t));
+  if (result == NULL) {
+    puts(MLLC_ERROR_MSG);
+    exit(1);
+  }
   ast_node_t *cmdnode = result;
   token_list_t *arg = get(it)->data.cmd.parameters;
   cmdnode->type = AST_CMD;
-  cmdnode->data.cmd.head = malloc(strlen(get(it)->data.cmd.head));
+  cmdnode->data.cmd.head = malloc(strlen(get(it)->data.cmd.head) + 1);
+  if (cmdnode->data.cmd.head == NULL) {
+    puts(MLLC_ERROR_MSG);
+    exit(1);
+  }
   strcpy(cmdnode->data.cmd.head, get(it)->data.cmd.head);
   int argn = 0;
   while (arg != NULL) {
     cmdnode->data.cmd.parameters[argn] = malloc(MAX_PARAM_LEN);
+    if (cmdnode->data.cmd.parameters[argn] == NULL) {
+      puts(MLLC_ERROR_MSG);
+      exit(1);
+    }
     if (get_type(&arg) == TK_WORD) {
       strcpy(cmdnode->data.cmd.parameters[argn], get(&arg)->data.word.str);
       arg = arg->next;
@@ -105,6 +122,10 @@ ast_node_t *parse_cmd(token_list_t **it) {
 ast_node_t *parse_subshell(token_list_t **it) {
   if (get_type(it) == TK_SUBSH_OPEN) {
     ast_node_t *node = malloc(sizeof(ast_node_t));
+    if (node == NULL) {
+      puts(MLLC_ERROR_MSG);
+      exit(1);
+    }
     next(it);
     node->type = AST_SUBSH;
     node->data.subsh.content = parse_logical(it);
@@ -122,6 +143,10 @@ ast_node_t *parse_redirection(token_list_t **it) {
   ast_node_t *left = parse_subshell(it);
   if (get_type(it) == TK_REDIRECT) {
     ast_node_t *node = malloc(sizeof(ast_node_t));
+    if (node == NULL) {
+      puts(MLLC_ERROR_MSG);
+      exit(1);
+    }
     node->type = AST_REDIRECT;
     node->data.redir.left = left;
     node->data.redir.rdinfo = get(it)->data.redir;
@@ -135,6 +160,10 @@ ast_node_t *parse_pipe(token_list_t **it) {
   ast_node_t *left = parse_redirection(it);
   while (get_type(it) == TK_PIPE) {
     ast_node_t *node = malloc(sizeof(ast_node_t));
+    if (node == NULL) {
+      puts(MLLC_ERROR_MSG);
+      exit(1);
+    }
     next(it);
     node->type = AST_PIPE;
     node->data.pipe.right = parse_redirection(it);
@@ -159,6 +188,10 @@ ast_node_t *parse_logical(token_list_t **it) {
   ast_node_t *left = parse_pipe(it);
   while (is_logical(it)) {
     ast_node_t *node = malloc(sizeof(ast_node_t));
+    if (node == NULL) {
+      puts(MLLC_ERROR_MSG);
+      exit(1);
+    }
     node->type = to_ast_logical_type(get_type(it));
     next(it);
     node->data.log.right = parse_pipe(it);
@@ -170,7 +203,6 @@ ast_node_t *parse_logical(token_list_t **it) {
 }
 
 ast_node_t *parse_tokens(token_list_t **tokens) {
-  int *shift = malloc(sizeof(int));
   ast_node_t *root = parse_logical(tokens);
 #ifdef DEBUG
   puts("###########AST###########");
@@ -182,38 +214,38 @@ ast_node_t *parse_tokens(token_list_t **tokens) {
 
 void parser_cleanup(ast_node_t *root) {
   switch (root->type) {
-    case AST_CMD:
-      free(root->data.cmd.head);
-      for(int i = 0; i < MAX_PARAMS; i++) {
-        if(root->data.cmd.parameters[i] == NULL) {
-          break;
-        }
-        free(root->data.cmd.parameters[i]);
+  case AST_CMD:
+    free(root->data.cmd.head);
+    for (int i = 0; i < MAX_PARAMS; i++) {
+      if (root->data.cmd.parameters[i] == NULL) {
+        break;
       }
-      break;
-    case AST_OR_IF:
-    case AST_AND_IF:
-    case AST_SEMI:
-      parser_cleanup(root->data.log.left);
-      parser_cleanup(root->data.log.right);
-      break;
-    case AST_SUBSH:
-      parser_cleanup(root->data.subsh.content);
-      break;
-    case AST_REDIRECT:
-      parser_cleanup(root->data.redir.left);
-      // free(root->data.redir.rdinfo.file); ALREADY FREED
-      break;
-    case AST_PIPE:
-      parser_cleanup(root->data.pipe.left);
-      parser_cleanup(root->data.pipe.right);
-      break;
-    case AST_CMDSUB:
-      parser_cleanup(root->data.cmdsub.cmd);
-      parser_cleanup(root->data.cmdsub.next);
-      // free(root->data.cmdsub.result); ALREADY FREED
-      break;
-  }  
+      free(root->data.cmd.parameters[i]);
+    }
+    break;
+  case AST_OR_IF:
+  case AST_AND_IF:
+  case AST_SEMI:
+    parser_cleanup(root->data.log.left);
+    parser_cleanup(root->data.log.right);
+    break;
+  case AST_SUBSH:
+    parser_cleanup(root->data.subsh.content);
+    break;
+  case AST_REDIRECT:
+    parser_cleanup(root->data.redir.left);
+    // free(root->data.redir.rdinfo.file); ALREADY FREED
+    break;
+  case AST_PIPE:
+    parser_cleanup(root->data.pipe.left);
+    parser_cleanup(root->data.pipe.right);
+    break;
+  case AST_CMDSUB:
+    parser_cleanup(root->data.cmdsub.cmd);
+    parser_cleanup(root->data.cmdsub.next);
+    // free(root->data.cmdsub.result); ALREADY FREED
+    break;
+  }
   free(root);
 }
 
