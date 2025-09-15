@@ -2,3 +2,4 @@ mysh
 mysh.dSYM
 bin
 obj
+.mysh_history
