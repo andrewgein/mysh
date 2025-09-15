@@ -51,7 +51,6 @@ token_list_t *get_tokens(char *buf) {
   token_list_t *tklist = NULL;
   shift = 0;
   bufp = buf;
-  int bufsize = 80;
 
   while ((token = get_token(buf, &shift)) != NULL) {
     if (tklist == NULL) {
@@ -317,12 +316,11 @@ token_list_t *merge_tokens(token_list_t *head) {
       exit(1);
     }
     first_parameter->type = TK_WORD;
-    first_parameter->data.word.str = malloc(strlen(curtk->data.cmd.head) + 1);
+    first_parameter->data.word.str = strdup(curtk->data.cmd.head);
     if (first_parameter->data.word.str == NULL) {
       puts(L_MLLC_ERROR);
       exit(1);
     }
-    strcpy(first_parameter->data.word.str, curtk->data.cmd.head);
     curtk->data.cmd.parameters = init(first_parameter);
     token_list_t *origin = head;
     for (int i = 1; nexttk != NULL; i++) {

@@ -87,12 +87,11 @@ ast_node_t *parse_cmd(token_list_t **it) {
   ast_node_t *cmdnode = result;
   token_list_t *arg = get(it)->data.cmd.parameters;
   cmdnode->type = AST_CMD;
-  cmdnode->data.cmd.head = malloc(strlen(get(it)->data.cmd.head) + 1);
+  cmdnode->data.cmd.head = strdup(get(it)->data.cmd.head);
   if (cmdnode->data.cmd.head == NULL) {
     puts(P_MLLC_ERROR_MSG);
     exit(1);
   }
-  strcpy(cmdnode->data.cmd.head, get(it)->data.cmd.head);
   int argn = 0;
   while (arg != NULL) {
     cmdnode->data.cmd.parameters[argn] = malloc(MAX_PARAM_LEN);
