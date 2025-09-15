@@ -1,5 +1,6 @@
 #include "lexer.h"
 
+#include "editor.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,39 +44,15 @@ int is_end_of_input(char *buf) {
            (buflen >= 3 && buf[buflen - 2] == '|' && buf[buflen - 3] == '|'));
 }
 
-token_list_t *get_tokens() {
+token_list_t *get_tokens(char *buf) {
   token_t *token;
   char *bufp;
   int shift;
   token_list_t *tklist = NULL;
   shift = 0;
-  char buf[80] = {0};
   bufp = buf;
   int bufsize = 80;
 
-  for (;;) {
-    fgets(bufp, bufsize, stdin);
-    if (is_end_of_input(bufp)) {
-      break;
-    }
-    int read = strlen(bufp);
-    if (read >= 2 && bufp[read - 2] == '\\') {
-      bufp[read - 1] = '\0';
-      bufp[read - 2] = '\0';
-      read -= 2;
-    } else if (read >= 2 && bufp[read - 2] == '&') {
-      bufp[read - 1] = ' ';
-    } else {
-      puts(L_USYNTHAX_ERROR);
-      exit(1);
-    }
-    bufp += read;
-    bufsize -= read;
-    printf("> ");
-  }
-
-  buf[strlen(buf) - 1] = 0;
-  bufp = buf;
   while ((token = get_token(buf, &shift)) != NULL) {
     if (tklist == NULL) {
       tklist = init(token);
